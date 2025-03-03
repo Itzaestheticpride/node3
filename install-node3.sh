@@ -1,76 +1,48 @@
 #!/bin/bash
 
-# Check if sudo is installed
-if ! command -v sudo &> /dev/null; then
-    echo "❌ sudo is not installed. Installing sudo..."
-    apt update
-    apt install -y sudo
-else
-    echo "✅ sudo is already installed."
+# Ensure the script is running as root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "❌ This script must be run as root. Try: sudo $0"
+    exit 1
 fi
 
-# Check if screen is installed
-if ! command -v screen &> /dev/null; then
-    echo "❌ screen is not installed. Installing screen..."
-    sudo apt update
-    sudo apt install -y screen
-else
-    echo "✅ screen is already installed."
-fi
+# Define the installation path
+INSTALL_DIR="/home/node3"
 
-# Check if net-tools is installed
-if ! command -v ifconfig &> /dev/null; then
-    echo "❌ net-tools is not installed. Installing net-tools..."
-    sudo apt install -y net-tools
-else
-    echo "✅ net-tools is already installed."
-fi
-
-# Check if lsof is installed
-if ! command -v lsof &> /dev/null; then
-    echo "❌ lsof is not installed. Installing lsof..."
-    sudo apt update
-    sudo apt install -y lsof
-    sudo apt upgrade -y
-else
-    echo "✅ lsof is already installed."
-fi
-
-while true; do
-    clear
-    echo "==============================================================="
-    echo -e "\e[1;36m🚀🚀 GAIANET NODE-3 INSTALLER 🚀🚀\e[0m"
-    echo "==============================================================="
-    
-    echo -e "\n\e[1mSelect an action:\e[0m\n"
-    echo -e "1) \e[1;46m\e[97m☁️  Install Gaia-Node-3 in /home/node3\e[0m"
-    echo -e "0) \e[1;31m❌  Exit Installer\e[0m"
-    echo "==============================================================="
-    
-    read -rp "Enter your choice: " choice
-
-    case $choice in
-        1)
-            echo "📥 Installing Gaia-Node-3 in /home/node3..."
-
-            # Create the Node-3 directory if it doesn't exist
-            mkdir -p /home/node3
-
-            # Run the installation script for GaiaNet
-            curl -sSfL 'https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh' | bash -s -- --base /home/node3
-            
-            echo "✅ Gaia-Node-3 installation complete!"
-            ;;
-
-        0)
-            echo "Exiting..."
-            exit 0
-            ;;
-
-        *)
-            echo "Invalid choice. Please try again."
-            ;;
-    esac
-
-    read -rp "Press Enter to return to the main menu..."
+# Ensure required packages are installed
+REQUIRED_PACKAGES=(curl sudo htop screen net-tools lsof)
+for pkg in "${REQUIRED_PACKAGES[@]}"; do
+    if ! dpkg -l | grep -qw "$pkg"; then
+        echo "Installing $pkg..."
+        apt install -y "$pkg"
+    else
+        echo "$pkg is already installed."
+    fi
 done
+
+# Create the node3 directory if it doesn’t exist
+mkdir -p "$INSTALL_DIR"
+
+# Download and install GaiaNet into node3 directory
+echo "Downloading GaiaNet installer..."
+curl -o "$INSTALL_DIR/gaiainstaller.sh" https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh
+chmod +x "$INSTALL_DIR/gaiainstaller.sh"
+
+echo "Installing GaiaNet into $INSTALL_DIR..."
+cd "$INSTALL_DIR"
+./gaiainstaller.sh --base "$INSTALL_DIR"
+
+# Initialize GaiaNet with the custom node3 directory
+echo "Initializing GaiaNet in $INSTALL_DIR..."
+"$INSTALL_DIR/bin/gaianet" init --base "$INSTALL_DIR"
+
+# Modify the GaiaNet config to use port 8087
+echo "Updating GaiaNet configuration to use port 8087..."
+sed -i 's/"socket-addr": "0.0.0.0:8080"/"socket-addr": "0.0.0.0:8087"/g' "$INSTALL_DIR/config.json"
+
+# Start the GaiaNet node
+echo "Starting GaiaNet node on port 8087..."
+"$INSTALL_DIR/bin/gaianet" start --base "$INSTALL_DIR"
+
+# Confirm the node is running
+echo "✅ GaiaNet node3 is now running on port 8087!"
