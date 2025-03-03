@@ -18,11 +18,20 @@ else
     echo "✅ screen is already installed."
 fi
 
+# Check if net-tools is installed
+if ! command -v ifconfig &> /dev/null; then
+    echo "❌ net-tools is not installed. Installing net-tools..."
+    sudo apt install -y net-tools
+else
+    echo "✅ net-tools is already installed."
+fi
+
 # Check if lsof is installed
 if ! command -v lsof &> /dev/null; then
     echo "❌ lsof is not installed. Installing lsof..."
     sudo apt update
     sudo apt install -y lsof
+    sudo apt upgrade -y
 else
     echo "✅ lsof is already installed."
 fi
@@ -50,13 +59,12 @@ while true; do
     case $choice in
         1)
             echo "Installing Gaia-Node-3..."
-            curl -sSfL 'https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh' | bash -s -- --base /root/node3
+            curl -sSfL 'https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh' | bash -s -- --base $HOME/node3
             ;;
 
         2)
-            echo "🔴 Stopping any existing 'gaiabot-node3' screen sessions..."
-            screen -ls | awk '/[0-9]+\.gaiabot-node3/ {print $1}' | xargs -r -I{} screen -X -S {} quit
-
+            echo "🔴 Starting Auto Chat for Node-3..."
+            
             # Function to check if port 8087 is active
             check_port() {
                 if sudo lsof -i :8087 > /dev/null 2>&1; then
@@ -68,31 +76,26 @@ while true; do
             }
 
             # Check if GaiaNet Node-3 is installed properly
-            gaianet_info=$( /root/node3/bin/gaianet info 2>/dev/null )
+            gaianet_info=$( ~/node3/bin/gaianet info 2>/dev/null )
             if [[ -z "$gaianet_info" ]]; then
                 echo -e "\e[1;31m❌ GaiaNet Node-3 is installed but not configured properly. Please reinstall.\e[0m"
                 read -r -p "Press Enter to return to the main menu..."
                 continue
             fi
 
-            # Start Auto Chat if GaiaNet Node-3 is detected
-            if [[ "$gaianet_info" == *"Node ID"* || "$gaianet_info" == *"Device ID"* ]]; then
-                echo -e "\e[1;32m✅ GaiaNet Node-3 detected. Starting chatbot...\e[0m"
+            # Start chatbot in a new screen session
+            screen -dmS gaiabot-node3 bash -c '
+            curl -O https://raw.githubusercontent.com/Itzaestheticpride/node3/main/gaiachat.sh && chmod +x gaiachat.sh;
+            if [ -f "gaiachat.sh" ]; then
+                ./gaiachat.sh --base $HOME/node3
+            else
+                echo "❌ Error: Failed to download gaiachat.sh"
+                sleep 10
+                exit 1
+            fi'
 
-                # Start the chatbot in a detached screen session
-                screen -dmS gaiabot-node3 bash -c '
-                curl -O https://raw.githubusercontent.com/abhiag/Gaiatest/main/gaiachat.sh && chmod +x gaiachat.sh;
-                if [ -f "gaiachat.sh" ]; then
-                    ./gaiachat.sh --base /root/node3
-                else
-                    echo "❌ Error: Failed to download gaiachat.sh"
-                    sleep 10
-                    exit 1
-                fi'
-
-                sleep 5
-                screen -r gaiabot-node3
-            fi
+            sleep 5
+            screen -r gaiabot-node3
             ;;
 
         3)
@@ -104,20 +107,20 @@ while true; do
         4)
             echo "Restarting GaiaNet Node-3..."
             sudo netstat -tulnp | grep :8087
-            /root/node3/bin/gaianet stop --base /root/node3
-            /root/node3/bin/gaianet start --base /root/node3
-            /root/node3/bin/gaianet info --base /root/node3
+            ~/node3/bin/gaianet stop --base $HOME/node3
+            ~/node3/bin/gaianet start --base $HOME/node3
+            ~/node3/bin/gaianet info --base $HOME/node3
             ;;
 
         5)
             echo "Stopping GaiaNet Node-3..."
             sudo netstat -tulnp | grep :8087
-            /root/node3/bin/gaianet stop --base /root/node3
+            ~/node3/bin/gaianet stop --base $HOME/node3
             ;;
 
         6)
             echo "Checking GaiaNet Node-3 ID & Device ID..."
-            gaianet_info=$( /root/node3/bin/gaianet info --base /root/node3 2>/dev/null)
+            gaianet_info=$(~/node3/bin/gaianet info --base $HOME/node3 2>/dev/null)
             if [[ -n "$gaianet_info" ]]; then
                 echo "$gaianet_info"
             else
@@ -130,7 +133,7 @@ while true; do
             read -rp "Are you sure you want to proceed? (y/n) " confirm
             if [[ "$confirm" == "y" ]]; then
                 echo "🗑️ Uninstalling GaiaNet Node-3..."
-                curl -sSfL 'https://github.com/GaiaNet-AI/gaianet-node/releases/latest/download/uninstall.sh' | bash -s -- --base /root/node3
+                curl -sSfL 'https://github.com/GaiaNet-AI/gaianet-node/releases/latest/download/uninstall.sh' | bash -s -- --base $HOME/node3
                 source ~/.bashrc
             else
                 echo "Uninstallation aborted."
