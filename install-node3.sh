@@ -1,87 +1,120 @@
 #!/bin/bash
 
-# Check if running as root
-if [ "$(id -u)" -ne 0 ]; then
-    echo "This script must be run as root. Try: sudo $0"
-    exit 1
-fi
-
-# Function to check if a package is installed
-is_installed() {
-    dpkg -l | grep -qw "$1"
-}
-
-# Fix Google Chrome GPG key issue
-if ! test -f /etc/apt/trusted.gpg.d/google-chrome.asc; then
-    echo "Adding Google Chrome GPG key..."
-    wget -qO - https://dl.google.com/linux/linux_signing_key.pub | sudo tee /etc/apt/trusted.gpg.d/google-chrome.asc
+# Check if sudo is installed
+if ! command -v sudo &> /dev/null; then
+    echo "❌ sudo is not installed. Installing sudo..."
+    apt update
+    apt install -y sudo
 else
-    echo "Google Chrome GPG key already exists, skipping."
+    echo "✅ sudo is already installed."
 fi
 
-# Update package lists
-echo "Updating package list..."
-apt update -q
+# Check if screen is installed
+if ! command -v screen &> /dev/null; then
+    echo "❌ screen is not installed. Installing screen..."
+    sudo apt update
+    sudo apt install -y screen
+else
+    echo "✅ screen is already installed."
+fi
 
-# Install required packages only if not already installed
-REQUIRED_PACKAGES=(nvtop sudo curl htop systemd fonts-noto-color-emoji)
-for pkg in "${REQUIRED_PACKAGES[@]}"; do
-    if ! is_installed "$pkg"; then
-        echo "Installing $pkg..."
-        apt install -y "$pkg"
-    else
-        echo "$pkg is already installed, skipping."
-    fi
-done
+# Check if net-tools is installed
+if ! command -v ifconfig &> /dev/null; then
+    echo "❌ net-tools is not installed. Installing net-tools..."
+    sudo apt install -y net-tools
+else
+    echo "✅ net-tools is already installed."
+fi
 
-# Set up the installation directory
+# Check if lsof is installed
+if ! command -v lsof &> /dev/null; then
+    echo "❌ lsof is not installed. Installing lsof..."
+    sudo apt update
+    sudo apt install -y lsof
+    sudo apt upgrade -y
+else
+    echo "✅ lsof is already installed."
+fi
+
+# Create node3 directory if not exists
 NODE_DIR="/home/node3"
 mkdir -p "$NODE_DIR"
-cd "$NODE_DIR"
 
-# Download and install GaiaNet for Node3
-echo "Downloading and installing GaiaNet in $NODE_DIR..."
-curl -sSfL 'https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh' | bash -s -- --base "$NODE_DIR"
+# Set GaiaNet base directory to /home/node3
+export GAIANET_BASE="$NODE_DIR"
 
-# Modify config to use port 8087
-CONFIG_FILE="$NODE_DIR/gaianet-config.toml"
-echo "Updating GaiaNet configuration for port 8087..."
-sed -i 's/8080/8087/g' "$CONFIG_FILE"
+while true; do
+    clear
+    echo "==============================================================="
+    echo -e "\e[1;36m🚀🚀 GAIANET NODE3 INSTALLER 🚀🚀\e[0m"
+    echo "==============================================================="
+    
+    echo -e "\e[1mSelect an action:\e[0m\n"
+    echo -e "1) Install Gaia-Node in $NODE_DIR"
+    echo -e "2) Start Gaia-Node"
+    echo -e "3) Stop Gaia-Node"
+    echo -e "4) Start Auto Chat With AI-Agent"
+    echo -e "5) Stop Auto Chatting"
+    echo -e "6) Restart GaiaNet Node"
+    echo -e "7) Check Node ID & Device ID"
+    echo -e "8) Uninstall GaiaNet Node"
+    echo -e "0) Exit"
+    echo "==============================================================="
+    read -rp "Enter your choice: " choice
 
-# Initialize and start Node3
-echo "Initializing GaiaNet Node3..."
-$NODE_DIR/bin/gaianet init --base "$NODE_DIR"
+    case $choice in
+        1)
+            echo "Installing Gaia-Node in $NODE_DIR..."
+            curl -sSfL 'https://raw.githubusercontent.com/GaiaNet-AI/gaianet-node/main/install.sh' | bash -s -- --base "$NODE_DIR"
+            sed -i 's/8080/8087/g' "$NODE_DIR/gaianet/config.toml"
+            ;;
 
-echo "Starting GaiaNet Node3..."
-$NODE_DIR/bin/gaianet start --base "$NODE_DIR"
+        2)
+            echo "Starting GaiaNet Node..."
+            "$NODE_DIR/bin/gaianet" start --base "$NODE_DIR"
+            ;;
 
-# Display Node3 status
-echo "Fetching GaiaNet Node3 status..."
-$NODE_DIR/bin/gaianet info --base "$NODE_DIR"
+        3)
+            echo "Stopping GaiaNet Node..."
+            "$NODE_DIR/bin/gaianet" stop --base "$NODE_DIR"
+            ;;
 
-# Auto Chat functionality
-start_autochat() {
-    echo "Starting Auto Chat for Node3..."
-    screen -dmS gaiachat3 bash -c '
-    curl -O https://raw.githubusercontent.com/Itzaestheticpride/node3/main/gaiachat.sh && chmod +x gaiachat.sh
-    ./gaiachat.sh --base /home/node3'
-    sleep 5
-    screen -r gaiachat3
-}
+        4)
+            echo "Starting Auto Chat..."
+            screen -dmS gaiachat bash -c "cd $NODE_DIR && ./gaiachat.sh"
+            ;;
 
-# Menu Options
-echo "1) Start Auto Chat with AI Agent (Node3)"
-echo "2) Restart GaiaNet Node3"
-echo "3) Stop GaiaNet Node3"
-echo "4) Check Node3 Status"
-echo "5) Exit"
-read -p "Choose an option: " choice
+        5)
+            echo "Stopping Auto Chat..."
+            screen -X -S gaiachat quit
+            ;;
 
-case $choice in
-    1) start_autochat ;;
-    2) $NODE_DIR/bin/gaianet stop --base "$NODE_DIR" && $NODE_DIR/bin/gaianet start --base "$NODE_DIR" ;;
-    3) $NODE_DIR/bin/gaianet stop --base "$NODE_DIR" ;;
-    4) $NODE_DIR/bin/gaianet info --base "$NODE_DIR" ;;
-    5) exit 0 ;;
-    *) echo "Invalid option" ;;
-esac
+        6)
+            echo "Restarting GaiaNet Node..."
+            "$NODE_DIR/bin/gaianet" stop --base "$NODE_DIR"
+            sleep 5
+            "$NODE_DIR/bin/gaianet" start --base "$NODE_DIR"
+            ;;
+
+        7)
+            echo "Checking Node ID & Device ID..."
+            "$NODE_DIR/bin/gaianet" info --base "$NODE_DIR"
+            ;;
+
+        8)
+            echo "Uninstalling GaiaNet Node..."
+            rm -rf "$NODE_DIR"
+            ;;
+
+        0)
+            echo "Exiting..."
+            exit 0
+            ;;
+
+        *)
+            echo "Invalid choice. Please try again."
+            ;;
+    esac
+
+    read -rp "Press Enter to return to the main menu..."
+done
